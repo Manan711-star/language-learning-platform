@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
+  <circle cx="30" cy="30" r="28" fill="#6366f1"/>
+  <polygon points="30,15 35,25 46,26 38,34 40,45 30,39 20,45 22,34 14,26 25,25" fill="#fbbf24"/>
+  <text x="30" y="36" text-anchor="middle" font-size="14" fill="white" font-weight="bold">XP</text>
+</svg>

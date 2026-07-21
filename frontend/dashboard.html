@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Your learning dashboard. Track your progress, achievements, streak, and XP points across all language courses.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://www.linguaverse.com/dashboard.html">
+  <title>Dashboard - LinguaVerse</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+    <div class="container">
+      <a class="navbar-brand" href="index.html"><i class="bi bi-globe2"></i> LinguaVerse</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="courses.html">Courses</a></li>
+          <li class="nav-item"><a class="nav-link" href="challenges.html">Challenges</a></li>
+        </ul>
+        <div id="user-menu" class="d-none dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-bs-toggle="dropdown">
+            <img src="assets/images/avatar-default.svg" alt="User" width="32" height="32" class="rounded-circle me-2 user-avatar">
+            <span class="user-name">User</span>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item active" href="dashboard.html"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+            <li><a class="dropdown-item" href="profile.html"><i class="bi bi-person"></i> Profile</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="dashboard-header" id="welcome-header">
+      <div class="spinner-border text-primary"></div>
+    </div>
+
+    <div class="row g-4 mb-4" id="stats-row">
+      <div class="col-md-4">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#eef2ff;color:#6366f1"><i class="bi bi-book"></i></div>
+          <div class="stat-value" id="stat-lessons">0</div>
+          <div class="stat-label">Lessons Completed</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#ecfdf5;color:#10b981"><i class="bi bi-patch-question"></i></div>
+          <div class="stat-value" id="stat-quizzes">0</div>
+          <div class="stat-label">Quizzes Taken</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-trophy"></i></div>
+          <div class="stat-value" id="stat-challenges">0</div>
+          <div class="stat-label">Challenges Done</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="card p-4 mb-4">
+          <h4 class="mb-3"><i class="bi bi-bar-chart"></i> Course Progress</h4>
+          <div id="course-progress">
+            <div class="text-center py-3"><div class="spinner-border text-primary"></div></div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <h4 class="mb-3"><i class="bi bi-clock-history"></i> Recent Activity</h4>
+          <div id="recent-activity">
+            <div class="text-center py-3"><div class="spinner-border text-primary"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card p-4 mb-4">
+          <h4 class="mb-3"><i class="bi bi-award"></i> Achievements</h4>
+          <div class="row" id="achievements">
+            <div class="text-center py-3"><div class="spinner-border text-primary"></div></div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <h4 class="mb-3"><i class="bi bi-lightning"></i> Quick Actions</h4>
+          <div class="d-grid gap-2">
+            <a href="courses.html" class="btn btn-primary"><i class="bi bi-book"></i> Browse Courses</a>
+            <a href="challenges.html" class="btn btn-outline-primary"><i class="bi bi-trophy"></i> Daily Challenges</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+
+    async function loadDashboard() {
+      try {
+        const data = await API.get('/progress/dashboard');
+        const user = data.user;
+
+        document.getElementById('welcome-header').innerHTML = `
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+              <h2>Welcome back, ${user.full_name || user.username}! 👋</h2>
+              <p class="text-muted mb-0">Learning ${user.target_language || 'a new language'} — keep up the great work!</p>
+            </div>
+            <div class="d-flex gap-2">
+              <span class="streak-badge" title="Current streak">
+                <i class="bi bi-fire"></i> ${user.streak_days} day${user.streak_days !== 1 ? 's' : ''}
+              </span>
+              <span class="streak-badge" style="background:#6366f1" title="Best streak ever">
+                <i class="bi bi-award"></i> ${user.max_streak_days} max
+              </span>
+              <span class="xp-badge"><i class="bi bi-star-fill"></i> ${user.xp_points} XP</span>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('stat-lessons').textContent = data.stats.lessons_completed;
+        document.getElementById('stat-quizzes').textContent = data.stats.quizzes_passed;
+        document.getElementById('stat-challenges').textContent = data.stats.challenges_completed;
+
+        const progressEl = document.getElementById('course-progress');
+        if (data.course_progress.length === 0) {
+          progressEl.innerHTML = '<p class="text-muted">No courses started yet. <a href="courses.html">Browse courses</a></p>';
+        } else {
+          progressEl.innerHTML = data.course_progress.map(c => `
+            <div class="mb-3">
+              <div class="d-flex justify-content-between mb-1">
+                <strong>${c.title}</strong>
+                <span class="text-muted">${c.completed}/${c.total_lessons} lessons</span>
+              </div>
+              <div class="progress" style="height:8px">
+                <div class="progress-bar" style="width:${c.progress_percent}%"></div>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        const activityEl = document.getElementById('recent-activity');
+        if (data.recent_activity.length === 0) {
+          activityEl.innerHTML = '<p class="text-muted">No activity yet. Start a lesson!</p>';
+        } else {
+          activityEl.innerHTML = data.recent_activity.map(a => `
+            <div class="d-flex align-items-center mb-2 p-2 rounded bg-light">
+              <i class="bi bi-${a.type === 'lesson' ? 'book' : 'patch-question'} me-3 fs-4 text-primary"></i>
+              <div class="flex-grow-1">
+                <strong>${a.name}</strong>
+                <small class="text-muted d-block">${new Date(a.date).toLocaleDateString()}</small>
+              </div>
+              <span class="badge bg-success">${a.score}%</span>
+            </div>
+          `).join('');
+        }
+
+        document.getElementById('achievements').innerHTML = data.achievements.map(a => `
+          <div class="col-4 text-center achievement-badge ${a.earned_at ? 'earned' : ''}">
+            <img src="${a.icon_url}" alt="${a.name}" width="60" height="60"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="achievement-fallback" style="display:none;width:60px;height:60px;border-radius:50%;background:#6366f1;color:white;font-weight:bold;font-size:18px;align-items:center;justify-content:center;margin:0 auto;">
+              ${a.name.charAt(0)}
+            </div>
+            <small class="d-block mt-1">${a.name}</small>
+          </div>
+        `).join('');
+
+        updateNavbar();
+      } catch (err) {
+        showToast(err.message, 'danger');
+      }
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

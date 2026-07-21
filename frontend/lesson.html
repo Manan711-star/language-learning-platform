@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson - LinguaVerse</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+    <div class="container">
+      <a class="navbar-brand" href="index.html"><i class="bi bi-globe2"></i> LinguaVerse</a>
+      <div class="navbar-nav ms-auto">
+        <a class="nav-link" href="#" id="back-link"><i class="bi bi-arrow-left"></i> Back to Course</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4" id="lesson-content">
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    if (!requireAuth()) throw new Error('Auth required');
+
+    const params = new URLSearchParams(window.location.search);
+    const courseId = params.get('courseId');
+    const lessonId = params.get('lessonId');
+
+    if (!courseId || !lessonId) window.location.href = 'courses.html';
+
+    document.getElementById('back-link').href = `course-detail.html?id=${courseId}`;
+
+    async function loadLesson() {
+      try {
+        const data = await API.get(`/courses/${courseId}/lessons/${lessonId}`);
+        const { lesson, progress } = data;
+        const vocab = lesson.vocabulary || [];
+
+        document.title = `${lesson.title} - LinguaVerse`;
+        document.getElementById('lesson-content').innerHTML = `
+          <div class="row justify-content-center">
+            <div class="col-lg-8">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>${lesson.title}</h2>
+                <span class="badge bg-warning text-dark">+${lesson.xp_reward} XP</span>
+              </div>
+
+              ${progress?.completed ? '<div class="alert alert-success"><i class="bi bi-check-circle"></i> You completed this lesson!</div>' : ''}
+
+              <div class="lesson-content mb-4">
+                ${formatMarkdown(lesson.content)}
+              </div>
+
+              ${vocab.length > 0 ? `
+                <div class="card p-4 mb-4">
+                  <h4><i class="bi bi-card-text"></i> Vocabulary</h4>
+                  <div class="d-flex flex-wrap">
+                    ${vocab.map(v => `
+                      <div class="vocab-card">
+                        <div class="word">${v.word}</div>
+                        <div class="translation">${v.translation}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <div class="text-center">
+                ${progress?.completed
+                  ? `<a href="course-detail.html?id=${courseId}" class="btn btn-primary btn-lg">Back to Course</a>`
+                  : `<button class="btn btn-success btn-lg" id="complete-btn"><i class="bi bi-check-lg"></i> Mark as Complete</button>`
+                }
+              </div>
+            </div>
+          </div>
+        `;
+
+        if (!progress?.completed) {
+          document.getElementById('complete-btn').addEventListener('click', completeLesson);
+        }
+      } catch (err) {
+        showToast(err.message, 'danger');
+      }
+    }
+
+    async function completeLesson() {
+      const btn = document.getElementById('complete-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+
+      try {
+        const result = await API.post(`/courses/${courseId}/lessons/${lessonId}/complete`, { score: 100 });
+        showToast(`Lesson completed! +${result.xp_earned} XP earned!`);
+        setTimeout(() => loadLesson(), 1500);
+      } catch (err) {
+        showToast(err.message, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Mark as Complete';
+      }
+    }
+
+    loadLesson();
+  </script>
+</body>
+</html>

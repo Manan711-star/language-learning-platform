@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Complete daily language challenges on LinguaVerse. Practice vocabulary, grammar, translation, pronunciation, and recognition. Earn XP and maintain your streak!">
+  <meta name="keywords" content="daily challenges, language practice, vocabulary challenge, grammar exercises, pronunciation practice">
+  <link rel="canonical" href="https://www.linguaverse.com/challenges.html">
+  <title>Daily Challenges - LinguaVerse</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="css/style.css" rel="stylesheet">
+  <style>
+    /* ── Validation feedback ── */
+    .answer-input.is-correct  { border-color: #198754; background: #f0fdf4; }
+    .answer-input.is-wrong    { border-color: #dc3545; background: #fff5f5; }
+    .answer-input.is-empty    { border-color: #ffc107; background: #fffbeb; }
+
+    /* ── Score bar ── */
+    #score-preview { transition: width .3s ease; }
+
+    /* ── Validation summary ── */
+    #validation-msg {
+      font-size: .875rem;
+      padding: .5rem .75rem;
+      border-radius: .375rem;
+      display: none;
+    }
+    #validation-msg.show { display: block; }
+
+    /* ── Pronunciation self-check ── */
+    .pronunciation-word { cursor: default; }
+    .pronunciation-check {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-top: .5rem;
+    }
+    .pronunciation-check input[type=checkbox] { width: 1.2rem; height: 1.2rem; cursor: pointer; }
+    .pron-count { font-size: .85rem; color: #6c757d; }
+
+    /* ── Vocabulary task input ── */
+    #vocab-task-input { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light sticky-top">
+    <div class="container">
+      <a class="navbar-brand" href="index.html"><i class="bi bi-globe2"></i> LinguaVerse</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="courses.html">Courses</a></li>
+          <li class="nav-item"><a class="nav-link active" href="challenges.html">Challenges</a></li>
+        </ul>
+        <div id="auth-links">
+          <a href="login.html" class="btn btn-outline-primary me-2">Login</a>
+          <a href="register.html" class="btn btn-primary">Get Started</a>
+        </div>
+        <div id="user-menu" class="d-none dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-bs-toggle="dropdown">
+            <img src="assets/images/avatar-default.svg" alt="User" width="32" height="32" class="rounded-circle me-2 user-avatar">
+            <span class="user-name">User</span>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="dashboard.html">Dashboard</a></li>
+            <li><a class="dropdown-item" href="#" onclick="logout()">Logout</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-header">
+    <div class="container">
+      <h1 class="section-title"><i class="bi bi-trophy"></i> Daily Challenges</h1>
+      <p class="text-muted mb-0">Complete today's challenges to earn bonus XP</p>
+    </div>
+  </div>
+
+  <div class="container pb-5" id="challenges-list">
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+  </div>
+
+  <!-- ── Challenge Modal ─────────────────────────────────────────────────── -->
+  <div class="modal fade" id="challengeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title mb-0" id="modal-title">Challenge</h5>
+            <small class="text-muted" id="modal-subtitle"></small>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body" id="modal-body"></div>
+
+        <!-- Live score bar (shown only for interactive types) -->
+        <div id="score-bar-wrap" class="px-4 pb-2 d-none">
+          <div class="d-flex justify-content-between mb-1">
+            <small class="text-muted">Your score</small>
+            <small id="score-label" class="fw-bold">0%</small>
+          </div>
+          <div class="progress" style="height:8px">
+            <div id="score-preview" class="progress-bar bg-success" style="width:0%"></div>
+          </div>
+          <div id="validation-msg" class="mt-2"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-success" id="complete-challenge-btn">
+            <i class="bi bi-check-lg"></i> Complete Challenge
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let currentChallengeId   = null;
+    let currentChallengeType = null;
+    let challenges           = [];
+
+    // ── Load challenge list ────────────────────────────────────────────────
+    async function loadChallenges() {
+      if (!isLoggedIn()) {
+        document.getElementById('challenges-list').innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-lock"></i>
+            <h4>Login Required</h4>
+            <p>Sign in to access daily challenges and earn XP.</p>
+            <a href="login.html" class="btn btn-primary">Login</a>
+          </div>`;
+        return;
+      }
+
+      try {
+        challenges = await API.get('/challenges');
+        renderChallenges();
+      } catch (err) {
+        document.getElementById('challenges-list').innerHTML =
+          `<div class="alert alert-danger">${err.message}</div>`;
+      }
+    }
+
+    function renderChallenges() {
+      const container = document.getElementById('challenges-list');
+
+      if (challenges.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-calendar-x"></i>
+            <h4>No challenges today</h4>
+            <p>Check back tomorrow!</p>
+          </div>`;
+        return;
+      }
+
+      const total     = challenges.length;
+      const done      = challenges.filter(c => c.completed).length;
+      const allDone   = done === total;
+
+      const summaryHtml = `
+        <div class="d-flex align-items-center gap-3 mb-4 p-3 rounded bg-light">
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="fw-semibold">Today's Progress</span>
+              <span class="text-muted">${done} / ${total} completed</span>
+            </div>
+            <div class="progress" style="height:8px">
+              <div class="progress-bar bg-success" style="width:${Math.round(done/total*100)}%"></div>
+            </div>
+          </div>
+          ${allDone
+            ? '<span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-star-fill"></i> All Done!</span>'
+            : ''}
+        </div>`;
+
+      const cardsHtml = challenges.map(c => `
+        <div class="col-md-6 col-lg-4">
+          <div class="card challenge-card ${c.difficulty.toLowerCase()} h-100 p-3
+               ${c.completed ? 'border-success opacity-75' : ''}">
+            <div class="d-flex justify-content-between mb-2">
+              <span class="badge bg-${c.difficulty === 'Easy' ? 'success'
+                                    : c.difficulty === 'Medium' ? 'warning' : 'danger'}">
+                ${c.difficulty}
+              </span>
+              <span class="badge bg-secondary">${c.language}</span>
+            </div>
+            <h5>${c.title}</h5>
+            <p class="text-muted small">${c.description}</p>
+            <div class="d-flex justify-content-between align-items-center mt-auto">
+              <span class="text-warning"><i class="bi bi-star-fill"></i> +${c.xp_reward} XP</span>
+              ${c.completed
+                ? `<span class="badge bg-success">
+                     <i class="bi bi-check-circle-fill"></i> Done
+                     ${c.score !== null ? '· ' + c.score + '%' : ''}
+                   </span>`
+                : `<button class="btn btn-primary btn-sm" onclick="openChallenge(${c.id})">
+                     <i class="bi bi-play-fill"></i> Start
+                   </button>`
+              }
+            </div>
+          </div>
+        </div>`).join('');
+
+      container.innerHTML = summaryHtml + `<div class="row g-4">${cardsHtml}</div>`;
+    }
+
+    // ── Open challenge modal ───────────────────────────────────────────────
+    async function openChallenge(id) {
+      try {
+        const data = await API.get(`/challenges/${id}`);
+        const c    = data.challenge;
+
+        // If already completed, do not reopen
+        if (data.attempt?.completed) {
+          showToast('You already completed this challenge today!', 'info');
+          return;
+        }
+
+        currentChallengeId   = id;
+        currentChallengeType = c.challenge_type;
+
+        const content = typeof c.content === 'string' ? JSON.parse(c.content) : c.content;
+
+        document.getElementById('modal-title').textContent    = c.title;
+        document.getElementById('modal-subtitle').textContent =
+          `${c.language} · ${c.difficulty} · +${c.xp_reward} XP`;
+
+        // Build modal body based on challenge type
+        let bodyHtml = `<p class="text-muted mb-3">${c.description}</p>`;
+
+        if (c.challenge_type === 'vocabulary') {
+          // ── Vocabulary: show word card + require user to type the word ──
+          bodyHtml += `
+            <div class="card p-4 text-center bg-light mb-3">
+              <h2 class="text-primary mb-1">${content.word}</h2>
+              <p class="fs-5 mb-1">${content.translation}</p>
+              <p class="text-muted fst-italic mb-2">"${content.example}"</p>
+              <p class="mb-0 fw-semibold">${content.task}</p>
+            </div>
+            <div id="vocab-task-input">
+              <label class="form-label fw-semibold">
+                Type the word <span class="text-primary">"${content.word}"</span> to confirm you've learned it:
+              </label>
+              <input type="text"
+                     class="form-control answer-input"
+                     id="vocab-confirm"
+                     placeholder="Type the word here..."
+                     data-answer="${content.word.toLowerCase()}"
+                     autocomplete="off">
+              <div class="form-text">This confirms you have read and understood the word.</div>
+            </div>`;
+
+        } else if (c.challenge_type === 'translation') {
+          // ── Translation: text inputs, need ≥1 correct ──────────────────
+          bodyHtml += `
+            <p class="fw-semibold mb-2">Translate each phrase into English:</p>
+            ${content.phrases.map((p, i) => `
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <strong>${i + 1}.</strong>
+                    <span class="ms-1 fs-5">${p.french}</span>
+                  </div>
+                  <span class="feedback-icon fs-5"></span>
+                </div>
+                <input type="text"
+                       class="form-control mt-2 answer-input"
+                       placeholder="Type English translation..."
+                       data-answer="${p.english.toLowerCase()}"
+                       autocomplete="off"
+                       spellcheck="false">
+              </div>`).join('')}`;
+
+        } else if (c.challenge_type === 'recognition') {
+          // ── Recognition: type the meaning of each character ────────────
+          bodyHtml += `
+            <p class="fw-semibold mb-2">Type the meaning of each character:</p>
+            <div class="row g-3">
+              ${content.characters.map(ch => `
+                <div class="col-6 col-md-4 col-lg-3">
+                  <div class="border rounded p-3 text-center">
+                    <div class="display-4 mb-2">${ch.char}</div>
+                    <input type="text"
+                           class="form-control form-control-sm text-center answer-input"
+                           placeholder="Meaning..."
+                           data-answer="${ch.meaning.toLowerCase()}"
+                           autocomplete="off"
+                           spellcheck="false">
+                  </div>
+                </div>`).join('')}
+            </div>`;
+
+        } else if (c.challenge_type === 'grammar') {
+          // ── Grammar: dropdowns, need ≥1 correct ────────────────────────
+          const allArticles = [...new Set(content.nouns.map(n => n.article))].sort();
+          bodyHtml += `
+            <p class="fw-semibold mb-2">Select the correct article for each noun:</p>
+            ${content.nouns.map((n, i) => `
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>${n.word}</strong>
+                    <span class="text-muted ms-2">(${n.english})</span>
+                  </div>
+                  <span class="feedback-icon fs-5"></span>
+                </div>
+                <select class="form-select mt-2 answer-input" data-answer="${n.article}">
+                  <option value="">— Select article —</option>
+                  ${allArticles.map(a => `<option value="${a}">${a}</option>`).join('')}
+                </select>
+              </div>`).join('')}`;
+
+        } else if (c.challenge_type === 'pronunciation') {
+          // ── Pronunciation: user must tick every word as practised ──────
+          bodyHtml += `
+            <p class="fw-semibold mb-2">
+              Practise each word aloud, then tick it off:
+            </p>
+            ${content.words.map((w, i) => `
+              <div class="border rounded p-3 mb-2 pronunciation-word">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <strong class="fs-5">${w.word}</strong>
+                    <span class="text-muted ms-2">— ${w.meaning}</span>
+                    <div class="text-muted small mt-1">IPA: <em>${w.ipa}</em></div>
+                  </div>
+                </div>
+                <div class="pronunciation-check mt-2">
+                  <input type="checkbox"
+                         class="pron-checkbox answer-input"
+                         id="pron-${i}"
+                         data-answer="checked">
+                  <label for="pron-${i}" class="mb-0">I practised this word</label>
+                </div>
+              </div>`).join('')}
+            <p class="pron-count mt-2 text-muted">
+              Ticked: <span id="pron-ticked">0</span> / ${content.words.length}
+            </p>`;
+        }
+
+        document.getElementById('modal-body').innerHTML       = bodyHtml;
+        document.getElementById('complete-challenge-btn').style.display = 'block';
+
+        // Reset score bar
+        const scoreBarWrap = document.getElementById('score-bar-wrap');
+        const isInteractive = ['translation', 'recognition', 'grammar'].includes(c.challenge_type);
+        if (isInteractive) {
+          scoreBarWrap.classList.remove('d-none');
+          updateScoreBar();
+        } else {
+          scoreBarWrap.classList.add('d-none');
+        }
+
+        // Wire up live validation listeners
+        wireInputListeners(c.challenge_type);
+
+        // Show modal
+        new bootstrap.Modal(document.getElementById('challengeModal')).show();
+
+      } catch (err) {
+        showToast(err.message, 'danger');
+      }
+    }
+
+    // ── Wire real-time input listeners ─────────────────────────────────────
+    function wireInputListeners(type) {
+      if (type === 'translation' || type === 'recognition') {
+        document.querySelectorAll('#modal-body .answer-input').forEach(input => {
+          input.addEventListener('input', () => {
+            updateScoreBar();
+            liveCheckInput(input);
+          });
+        });
+      } else if (type === 'grammar') {
+        document.querySelectorAll('#modal-body .answer-input').forEach(sel => {
+          sel.addEventListener('change', () => {
+            updateScoreBar();
+            liveCheckInput(sel);
+          });
+        });
+      } else if (type === 'pronunciation') {
+        document.querySelectorAll('.pron-checkbox').forEach(cb => {
+          cb.addEventListener('change', () => {
+            const ticked = document.querySelectorAll('.pron-checkbox:checked').length;
+            document.getElementById('pron-ticked').textContent = ticked;
+          });
+        });
+      }
+    }
+
+    // Colour-code a single input after the user interacts with it
+    function liveCheckInput(input) {
+      const val = (input.tagName === 'SELECT')
+        ? input.value.trim().toLowerCase()
+        : input.value.trim().toLowerCase();
+      const ans = input.dataset.answer.toLowerCase();
+
+      input.classList.remove('is-correct', 'is-wrong', 'is-empty');
+
+      if (!val) {
+        input.classList.add('is-empty');
+      } else if (isAnswerCorrect(val, ans)) {
+        input.classList.add('is-correct');
+        const icon = input.closest('.border')?.querySelector('.feedback-icon');
+        if (icon) icon.textContent = '✅';
+      } else {
+        input.classList.add('is-wrong');
+        const icon = input.closest('.border')?.querySelector('.feedback-icon');
+        if (icon) icon.textContent = '❌';
+      }
+    }
+
+    // Fuzzy match: exact OR one contains the other (handles minor wording differences)
+    function isAnswerCorrect(val, ans) {
+      if (!val || !ans) return false;
+      return val === ans || val.includes(ans) || ans.includes(val);
+    }
+
+    // Update the live score bar for interactive types
+    function updateScoreBar() {
+      const inputs  = document.querySelectorAll('#modal-body .answer-input');
+      if (!inputs.length) return;
+
+      let correct = 0;
+      inputs.forEach(input => {
+        const val = input.value.trim().toLowerCase();
+        const ans = input.dataset.answer.toLowerCase();
+        if (val && isAnswerCorrect(val, ans)) correct++;
+      });
+
+      const pct = Math.round((correct / inputs.length) * 100);
+      document.getElementById('score-preview').style.width = pct + '%';
+      document.getElementById('score-label').textContent   = pct + '%';
+
+      // Update bar colour
+      const bar = document.getElementById('score-preview');
+      bar.classList.remove('bg-success', 'bg-warning', 'bg-danger');
+      bar.classList.add(pct >= 60 ? 'bg-success' : pct >= 30 ? 'bg-warning' : 'bg-danger');
+    }
+
+    // ── Validate before submit ─────────────────────────────────────────────
+    // Returns { valid: bool, score: number, message: string }
+    function validateChallenge(type) {
+      const msgEl = document.getElementById('validation-msg');
+
+      const showError = (msg) => {
+        if (msgEl) {
+          msgEl.className = 'mt-2 show alert alert-warning';
+          msgEl.textContent = msg;
+        }
+        return { valid: false, score: 0, message: msg };
+      };
+
+      const clearMsg = () => {
+        if (msgEl) { msgEl.className = 'mt-2'; msgEl.textContent = ''; }
+      };
+
+      if (type === 'vocabulary') {
+        // User must type the target word (exact, case-insensitive)
+        const input = document.getElementById('vocab-confirm');
+        if (!input || !input.value.trim()) {
+          input?.classList.add('is-empty');
+          return showError('Please type the word to confirm you have learned it.');
+        }
+        const val = input.value.trim().toLowerCase();
+        const ans = input.dataset.answer.toLowerCase();
+        if (!isAnswerCorrect(val, ans)) {
+          input.classList.remove('is-empty');
+          input.classList.add('is-wrong');
+          return showError(`That doesn't match. Try typing "${input.dataset.answer}" exactly.`);
+        }
+        input.classList.add('is-correct');
+        clearMsg();
+        return { valid: true, score: 100, message: '' };
+      }
+
+      if (type === 'translation' || type === 'recognition') {
+        const inputs = document.querySelectorAll('#modal-body .answer-input');
+
+        // Check every field is filled
+        let anyEmpty = false;
+        inputs.forEach(i => {
+          if (!i.value.trim()) { i.classList.add('is-empty'); anyEmpty = true; }
+        });
+        if (anyEmpty) {
+          return showError('Please answer all questions before submitting.');
+        }
+
+        let correct = 0;
+        inputs.forEach(input => {
+          const val = input.value.trim().toLowerCase();
+          const ans = input.dataset.answer.toLowerCase();
+          if (isAnswerCorrect(val, ans)) correct++;
+        });
+
+        const score = Math.round((correct / inputs.length) * 100);
+
+        if (correct === 0) {
+          return showError('You need at least one correct answer. Check your translations and try again.');
+        }
+
+        clearMsg();
+        return { valid: true, score, message: '' };
+      }
+
+      if (type === 'grammar') {
+        const selects = document.querySelectorAll('#modal-body .answer-input');
+
+        // Check every dropdown has a selection
+        let anyEmpty = false;
+        selects.forEach(s => {
+          if (!s.value) { s.classList.add('is-empty'); anyEmpty = true; }
+        });
+        if (anyEmpty) {
+          return showError('Please select an article for every noun before submitting.');
+        }
+
+        let correct = 0;
+        selects.forEach(sel => {
+          if (sel.value.toLowerCase() === sel.dataset.answer.toLowerCase()) correct++;
+        });
+
+        const score = Math.round((correct / selects.length) * 100);
+
+        if (correct === 0) {
+          return showError('You need at least one correct article. Review and try again.');
+        }
+
+        clearMsg();
+        return { valid: true, score, message: '' };
+      }
+
+      if (type === 'pronunciation') {
+        const checkboxes = document.querySelectorAll('.pron-checkbox');
+        const total   = checkboxes.length;
+        const ticked  = document.querySelectorAll('.pron-checkbox:checked').length;
+
+        if (ticked === 0) {
+          return showError('Please tick at least one word to confirm you practised it.');
+        }
+        if (ticked < total) {
+          return showError(`Please tick all ${total} words to confirm you've practised them all.`);
+        }
+
+        clearMsg();
+        return { valid: true, score: 100, message: '' };
+      }
+
+      // Fallback (unknown type — allow through)
+      clearMsg();
+      return { valid: true, score: 100, message: '' };
+    }
+
+    // ── Complete challenge button ───────────────────────────────────────────
+    document.getElementById('complete-challenge-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('complete-challenge-btn');
+
+      // Front-end validation
+      const { valid, score, message } = validateChallenge(currentChallengeType);
+      if (!valid) {
+        // Shake the button to draw attention to the error
+        btn.classList.add('btn-danger');
+        setTimeout(() => btn.classList.remove('btn-danger'), 600);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Submitting…';
+
+      try {
+        const result = await API.post(`/challenges/${currentChallengeId}/complete`, { score });
+
+        bootstrap.Modal.getInstance(document.getElementById('challengeModal')).hide();
+
+        if (result.already_completed) {
+          showToast('You already completed this challenge today!', 'info');
+        } else {
+          let msg = `Challenge completed! +${result.xp_earned} XP`;
+          if (result.streak_updated) {
+            msg += `  🔥 ${result.streak_days} day streak!`;
+          }
+          showToast(msg, 'success');
+        }
+
+        // Reload the list so card flips to "Done"
+        loadChallenges();
+
+      } catch (err) {
+        // Show backend error (e.g. "not available today", "score too low")
+        showToast(err.message, 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Complete Challenge';
+      }
+    });
+
+    // ── Reset validation state when modal closes ───────────────────────────
+    document.getElementById('challengeModal').addEventListener('hidden.bs.modal', () => {
+      currentChallengeId   = null;
+      currentChallengeType = null;
+      document.getElementById('modal-body').innerHTML = '';
+      const msgEl = document.getElementById('validation-msg');
+      if (msgEl) { msgEl.className = 'mt-2'; msgEl.textContent = ''; }
+      document.getElementById('score-bar-wrap').classList.add('d-none');
+      const btn = document.getElementById('complete-challenge-btn');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check-lg"></i> Complete Challenge';
+    });
+
+    // ── Boot ───────────────────────────────────────────────────────────────
+    loadChallenges();
+  </script>
+</body>
+</html>
