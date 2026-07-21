@@ -98,7 +98,8 @@ Open **pgAdmin 4** (or any PostgreSQL client) and run the following SQL files **
 
 1. Open the Query Tool for your target database
 2. Run `database/schema.sql` — creates all tables, indexes, and constraints
-3. Run `database/seed.sql` — inserts all courses, lessons, quizzes, and challenges
+3. Run `database/seed.sql` — inserts all courses, lessons, quizzes, and challenges3. Run `database/seed.sql` — inserts all courses, lessons, quizzes, and challenges
+3. Run `database/optimize_database.sql` — It Add Optimize features in your database
 
 Or using the `psql` command line:
 
@@ -109,13 +110,7 @@ psql -U postgres -d your_database_name -f database/seed.sql
 
 ### 3. Configure Environment Variables
 
-Copy the example env file and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your actual values:
+Create `.env` with your actual values:
 
 ```env
 PORT=3000
