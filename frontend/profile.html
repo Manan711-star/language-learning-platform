@@ -112,7 +112,11 @@
       }
     }
 
-    document.getElementById('avatar-input').addEventListener('change', async (e) => {
+    // Holds the selected file until Save Changes is clicked
+    let pendingAvatarFile = null;
+    let pendingAvatarPreviewUrl = null;
+
+    document.getElementById('avatar-input').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
@@ -122,27 +126,13 @@
         return;
       }
 
-      const formData = new FormData();
-      formData.append('avatar', file);
+      // Revoke previous preview URL if any
+      if (pendingAvatarPreviewUrl) URL.revokeObjectURL(pendingAvatarPreviewUrl);
 
-      const avatarEl = document.getElementById('avatar');
-      const previewUrl = URL.createObjectURL(file);
-      avatarEl.src = previewUrl;
-
-      try {
-        const updated = await API.upload('/auth/profile/avatar', formData);
-        avatarEl.src = `${updated.avatar_url}?t=${Date.now()}`;
-        const user = getUser();
-        user.avatar_url = updated.avatar_url;
-        localStorage.setItem('user', JSON.stringify(user));
-        showToast('Profile photo updated!');
-      } catch (err) {
-        avatarEl.src = getUser()?.avatar_url || 'assets/images/avatar-default.svg';
-        showToast(err.message, 'danger');
-      } finally {
-        URL.revokeObjectURL(previewUrl);
-        e.target.value = '';
-      }
+      pendingAvatarFile = file;
+      pendingAvatarPreviewUrl = URL.createObjectURL(file);
+      document.getElementById('avatar').src = pendingAvatarPreviewUrl;
+      document.getElementById('avatar-hint').textContent = 'Photo selected — click Save Changes to apply.';
     });
 
     document.getElementById('profile-form').addEventListener('submit', async (e) => {
@@ -151,6 +141,22 @@
       btn.disabled = true;
 
       try {
+        // Upload avatar first if a new one was selected
+        if (pendingAvatarFile) {
+          const formData = new FormData();
+          formData.append('avatar', pendingAvatarFile);
+          const uploaded = await API.upload('/auth/profile/avatar', formData);
+          const user = getUser();
+          user.avatar_url = uploaded.avatar_url;
+          localStorage.setItem('user', JSON.stringify(user));
+          document.getElementById('avatar').src = `${uploaded.avatar_url}?t=${Date.now()}`;
+          URL.revokeObjectURL(pendingAvatarPreviewUrl);
+          pendingAvatarFile = null;
+          pendingAvatarPreviewUrl = null;
+          document.getElementById('avatar-hint').textContent = 'JPEG, PNG, GIF, or WebP · max 2MB';
+        }
+
+        // Save profile fields
         const updated = await API.put('/auth/profile', {
           full_name: document.getElementById('full_name').value,
           native_language: document.getElementById('native_language').value,
