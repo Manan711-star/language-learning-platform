@@ -36,6 +36,27 @@
     async function loadQuiz() {
       try {
         quizData = await API.get(`/quizzes/${quizId}`);
+
+        // If user already passed this quiz, show result instead of quiz
+        const passed = quizData.previous_attempts.find(a => a.passed);
+        if (passed) {
+          document.title = `${quizData.quiz.title} - LinguaVerse`;
+          document.getElementById('quiz-content').innerHTML = `
+            <div class="text-center py-5">
+              <div class="display-1 mb-3">🏆</div>
+              <h2>Already Passed!</h2>
+              <p class="fs-5 text-muted">${quizData.quiz.title}</p>
+              <p class="fs-4">Your score: <strong class="text-success">${passed.score}%</strong></p>
+              <p class="text-muted">You passed this quiz on ${new Date(passed.attempted_at).toLocaleDateString()}. XP has already been awarded.</p>
+              <div class="d-flex gap-3 justify-content-center mt-4 flex-wrap">
+                <a href="courses.html" class="btn btn-primary btn-lg">Back to Courses</a>
+                <a href="dashboard.html" class="btn btn-outline-secondary btn-lg">Dashboard</a>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
         timeLeft = quizData.quiz.time_limit_seconds;
         startTime = Date.now();
         renderQuiz();
@@ -136,7 +157,7 @@
           <div class="display-1 mb-3">${result.passed ? '🎉' : '📚'}</div>
           <h2>${result.passed ? 'Congratulations!' : 'Keep Practicing!'}</h2>
           <p class="fs-4">Score: <strong class="${result.passed ? 'text-success' : 'text-danger'}">${result.score}%</strong> (${result.correct}/${result.total})</p>
-          ${result.passed ? `<p class="text-success">+${result.xp_earned} XP earned! Total: ${result.total_xp} XP</p>` : `<p class="text-muted">You need ${quizData.quiz.passing_score}% to pass. Try again!</p>`}
+          ${result.passed ? `<p class="text-success">${result.xp_earned > 0 ? `+${result.xp_earned} XP earned! Total: ${result.total_xp} XP` : `No XP awarded — you already earned XP for this quiz.`}</p>` : `<p class="text-muted">You need ${quizData.quiz.passing_score}% to pass. Try again!</p>`}
         </div>
 
         ${result.results.map((r, i) => `
