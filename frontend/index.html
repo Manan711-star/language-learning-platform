@@ -180,8 +180,8 @@
     </div>
   </section>
 
-  <!-- CTA -->
-  <section class="py-5">
+  <!-- CTA — only visible when not logged in -->
+  <section class="py-5" id="cta-section" style="display:none">
     <div class="container text-center">
       <div class="card bg-gradient text-white p-5">
         <h2 class="mb-3">Ready to Start Your Language Journey?</h2>
@@ -275,6 +275,11 @@
 
     loadFeaturedCourses();
     loadLeaderboard();
+
+    // Show CTA section only when user is not logged in
+    if (!isLoggedIn()) {
+      document.getElementById('cta-section').style.display = 'block';
+    }
   </script>
 </body>
 </html>
