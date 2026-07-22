@@ -98,9 +98,15 @@
           <i class="bi bi-fire"></i> ${user.streak_days} day${user.streak_days !== 1 ? 's' : ''} 
           <span style="opacity:0.7;font-size:0.85em">(best: ${user.max_streak_days || 0})</span>
         `;
-        document.getElementById('avatar').src = user.avatar_url.startsWith('uploads/')
-          ? `${user.avatar_url}?t=${Date.now()}`
-          : user.avatar_url;
+        const avatarEl = document.getElementById('avatar');
+        if (user.avatar_url) {
+          avatarEl.src = user.avatar_url.startsWith('uploads/')
+            ? `/${user.avatar_url}?t=${Date.now()}`
+            : user.avatar_url;
+        } else {
+          avatarEl.src = 'assets/images/avatar-default.svg';
+        }
+        avatarEl.onerror = function() { this.src = 'assets/images/avatar-default.svg'; this.onerror = null; };
         document.getElementById('full_name').value = user.full_name || '';
         document.getElementById('native_language').value = user.native_language || '';
         document.getElementById('target_language').value = user.target_language || 'Spanish';
@@ -149,7 +155,7 @@
           const user = getUser();
           user.avatar_url = uploaded.avatar_url;
           localStorage.setItem('user', JSON.stringify(user));
-          document.getElementById('avatar').src = `${uploaded.avatar_url}?t=${Date.now()}`;
+          document.getElementById('avatar').src = `/${uploaded.avatar_url}?t=${Date.now()}`;
           URL.revokeObjectURL(pendingAvatarPreviewUrl);
           pendingAvatarFile = null;
           pendingAvatarPreviewUrl = null;
@@ -178,10 +184,14 @@
     async function loadLeaderboard() {
       try {
         const leaders = await API.get('/progress/leaderboard');
-        document.getElementById('leaderboard').innerHTML = leaders.map((l, i) => `
+        document.getElementById('leaderboard').innerHTML = leaders.map((l, i) => {
+          const avatarSrc = l.avatar_url 
+            ? (l.avatar_url.startsWith('uploads/') ? `/${l.avatar_url}` : l.avatar_url)
+            : 'assets/images/avatar-default.svg';
+          return `
           <div class="leaderboard-item">
             <div class="leaderboard-rank ${i < 3 ? 'rank-' + (i+1) : 'rank-default'}">${i + 1}</div>
-            <img src="${l.avatar_url}" alt="" width="40" height="40" class="rounded-circle me-3">
+            <img src="${avatarSrc}" alt="" width="40" height="40" class="rounded-circle me-3" onerror="this.src='assets/images/avatar-default.svg'; this.onerror=null;">
             <div class="flex-grow-1">
               <strong>${l.full_name || l.username}</strong>
               <small class="text-muted d-block">
@@ -190,7 +200,8 @@
               </small>
             </div>
           </div>
-        `).join('');
+        `;
+        }).join('');
       } catch (err) {
         document.getElementById('leaderboard').innerHTML = '<p class="text-muted">Could not load leaderboard.</p>';
       }
