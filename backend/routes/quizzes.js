@@ -43,7 +43,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 router.post('/:id/submit', authMiddleware, async (req, res) => {
   try {
-    const { answers, time_taken } = req.body;
+    const answers = req.body.answers ?? req.query.answers;
+    const time_taken = req.body.time_taken ?? req.query.time_taken;
     const quizId = req.params.id;
 
     const quizResult = await pool.query('SELECT * FROM quizzes WHERE id = $1', [quizId]);

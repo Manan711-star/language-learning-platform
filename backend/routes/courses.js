@@ -116,7 +116,7 @@ router.post('/:courseId/lessons/:lessonId/complete', authMiddleware, async (req,
     }
 
     const lesson = lessonResult.rows[0];
-    const score = req.body.score || 100;
+    const score = req.body.score ?? req.query.score ?? 100;
 
     await pool.query(
       `INSERT INTO user_lesson_progress (user_id, lesson_id, completed, score, completed_at)

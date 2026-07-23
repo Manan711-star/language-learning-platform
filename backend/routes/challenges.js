@@ -162,8 +162,11 @@ router.post('/:id/complete', authMiddleware, async (req, res) => {
     }
 
     // ── Rule 2: validate the submitted score ────────────────────────────────
-    const score = (req.body.score !== undefined && req.body.score !== null)
-      ? parseInt(req.body.score, 10)
+    const rawScore = req.body.score !== undefined && req.body.score !== null
+      ? req.body.score
+      : req.query.score;
+    const score = rawScore !== undefined && rawScore !== null
+      ? parseInt(rawScore, 10)
       : -1;
 
     if (isNaN(score) || score < 0) {

@@ -11,7 +11,11 @@ const router = express.Router();
 
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, full_name, target_language } = req.body;
+    const username = req.body.username || req.query.username;
+    const email = req.body.email || req.query.email;
+    const password = req.body.password || req.query.password;
+    const full_name = req.body.full_name || req.query.full_name;
+    const target_language = req.body.target_language || req.query.target_language;
 
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'Username, email, and password are required.' });
@@ -48,7 +52,8 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = req.body.email || req.query.email;
+    const password = req.body.password || req.query.password;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
@@ -108,7 +113,9 @@ router.get('/profile', authMiddleware, async (req, res) => {
 
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { full_name, target_language, native_language } = req.body;
+    const full_name = req.body.full_name || req.query.full_name;
+    const target_language = req.body.target_language || req.query.target_language;
+    const native_language = req.body.native_language || req.query.native_language;
     const result = await pool.query(
       `UPDATE users SET full_name = COALESCE($1, full_name),
               target_language = COALESCE($2, target_language),
