@@ -12,8 +12,12 @@ const upload = require('../middleware/upload');
 // ---------------------------------------------------------------------------
 // Nodemailer transporter — reads SMTP config from environment variables.
 // Supports any SMTP provider (Gmail, Outlook, Mailgun, etc.).
+// Returns null if SMTP env vars are not configured.
 // ---------------------------------------------------------------------------
 function createTransporter() {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return null;
+  }
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -265,6 +269,10 @@ router.post('/forgot-password', async (req, res) => {
 
     // Send the email
     const transporter = createTransporter();
+    if (!transporter) {
+      console.error('Forgot password: SMTP not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS env vars.');
+      return res.status(500).json({ error: 'Email service is not configured. Please contact support.' });
+    }
     await transporter.sendMail({
       from: `"LinguaVerse" <${process.env.SMTP_USER}>`,
       to: email,
