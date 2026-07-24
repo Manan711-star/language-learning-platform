@@ -4,29 +4,18 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const pool = require('../config/db');
 const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 // ---------------------------------------------------------------------------
-// Nodemailer transporter — reads SMTP config from environment variables.
-// Supports any SMTP provider (Gmail, Outlook, Mailgun, etc.).
-// Returns null if SMTP env vars are not configured.
+// Resend email client — uses RESEND_API_KEY environment variable.
+// Sign up free at resend.com — 100 emails/day on free tier.
 // ---------------------------------------------------------------------------
-function createTransporter() {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    return null;
-  }
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',   // true for port 465
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+function getResendClient() {
+  if (!process.env.RESEND_API_KEY) return null;
+  return new Resend(process.env.RESEND_API_KEY);
 }
 
 // ---------------------------------------------------------------------------
@@ -276,15 +265,15 @@ router.post('/forgot-password', async (req, res) => {
     const resetLink = `${appUrl}/reset-password.html?token=${rawToken}&email=${encodeURIComponent(email)}`;
 
     // Send the email
-    const transporter = createTransporter();
-    if (!transporter) {
-      console.error('Forgot password: SMTP not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS env vars.');
+    const resend = getResendClient();
+    if (!resend) {
+      console.error('Forgot password: RESEND_API_KEY is not set.');
       return res.status(500).json({ error: 'Email service is not configured. Please contact support.' });
     }
-    
+
     try {
-      await transporter.sendMail({
-        from: `"LinguaVerse" <${process.env.SMTP_USER}>`,
+      await resend.emails.send({
+        from: 'LinguaVerse <onboarding@resend.dev>',
         to: email,
         subject: 'Reset your LinguaVerse password',
         html: `
