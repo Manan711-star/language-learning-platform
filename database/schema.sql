@@ -30,6 +30,8 @@ CREATE TABLE users (
     max_streak_days INTEGER DEFAULT 0,   -- highest streak the user has ever reached
     last_login DATE,
     last_streak_date DATE,               -- last calendar date a daily challenge was completed
+    password_reset_token VARCHAR(255),   -- hashed reset token
+    password_reset_expires TIMESTAMPTZ, -- token expiry (1 hour from request)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -185,6 +187,13 @@ ALTER TABLE lessons ADD CONSTRAINT check_xp_reward_positive CHECK (xp_reward > 0
 ALTER TABLE quizzes ADD CONSTRAINT check_passing_score_range CHECK (passing_score >= 0 AND passing_score <= 100);
 ALTER TABLE quiz_attempts ADD CONSTRAINT check_score_range CHECK (score >= 0 AND score <= 100);
 ALTER TABLE challenges ADD CONSTRAINT check_day_offset_non_negative CHECK (day_offset >= 0);
+
+-- Migration: Add password reset columns to users table
+-- Run this if you already have an existing database (do NOT run on a fresh schema install).
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS password_reset_token   VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS password_reset_expires  TIMESTAMPTZ;
 
 -- Updated_at trigger for users
 CREATE OR REPLACE FUNCTION update_updated_at()

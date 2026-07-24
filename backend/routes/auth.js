@@ -1,11 +1,49 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const nodemailer = require('nodemailer');
 const pool = require('../config/db');
 const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+
+// ---------------------------------------------------------------------------
+// Nodemailer transporter — reads SMTP config from environment variables.
+// Supports any SMTP provider (Gmail, Outlook, Mailgun, etc.).
+// ---------------------------------------------------------------------------
+function createTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',   // true for port 465
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Password policy: min 8 chars, 1 uppercase, 1 number, 1 special character.
+// Used in register and reset-password routes.
+// ---------------------------------------------------------------------------
+function validatePassword(password) {
+  if (!password || password.length < 8) {
+    return 'Password must be at least 8 characters.';
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'Password must contain at least one uppercase letter.';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must contain at least one number.';
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return 'Password must contain at least one special character (e.g. @, #, $, !).';
+  }
+  return null; // valid
+}
 
 const router = express.Router();
 
@@ -21,9 +59,8 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username, email, and password are required.' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-    }
+    const pwError = validatePassword(password);
+    if (pwError) return res.status(400).json({ error: pwError });
 
     const existing = await pool.query(
       'SELECT id FROM users WHERE email = $1 OR username = $2',
@@ -176,6 +213,152 @@ router.post('/profile/avatar', authMiddleware, (req, res, next) => {
     if (req.file) fs.unlinkSync(req.file.path);
     console.error('Avatar upload error:', err);
     res.status(500).json({ error: 'Server error during avatar upload.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/forgot-password
+//
+// Flow:
+//   1. Look up the user by email.
+//   2. Generate a cryptographically random token.
+//   3. Store a bcrypt hash of the token in the DB (never store raw tokens).
+//   4. Set a 1-hour expiry.
+//   5. Email the raw token as a link to the user.
+//
+// Always returns 200 — even if the email is not found — to prevent user
+// enumeration attacks (an attacker shouldn't be able to tell which emails
+// are registered).
+// ---------------------------------------------------------------------------
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const email = req.body.email || req.query.email;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+
+    const result = await pool.query('SELECT id, full_name FROM users WHERE email = $1', [email]);
+
+    // Always respond with success to prevent email enumeration
+    if (result.rows.length === 0) {
+      return res.json({ message: 'If that email exists, a reset link has been sent.' });
+    }
+
+    const user = result.rows[0];
+
+    // Generate a secure random 32-byte token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+
+    // Hash it before storing — so a DB leak doesn't expose usable tokens
+    const tokenHash = await bcrypt.hash(rawToken, 10);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    await pool.query(
+      'UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3',
+      [tokenHash, expiresAt, user.id]
+    );
+
+    // Build the reset link — uses APP_URL env var (falls back to localhost)
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const resetLink = `${appUrl}/reset-password.html?token=${rawToken}&email=${encodeURIComponent(email)}`;
+
+    // Send the email
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"LinguaVerse" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: 'Reset your LinguaVerse password',
+      html: `
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 480px; margin: auto; padding: 32px; background: #f8fafc; border-radius: 16px;">
+          <h2 style="color: #1e1b4b; margin-bottom: 8px;">Password Reset Request</h2>
+          <p style="color: #4b5563;">Hi ${user.full_name || 'there'},</p>
+          <p style="color: #4b5563;">We received a request to reset your password. Click the button below to choose a new one. This link expires in <strong>1 hour</strong>.</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${resetLink}"
+               style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 32px;
+                      border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 16px;">
+              Reset Password
+            </a>
+          </div>
+          <p style="color: #6b7280; font-size: 13px;">Or copy this link into your browser:<br>
+            <a href="${resetLink}" style="color: #6366f1; word-break: break-all;">${resetLink}</a>
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+          <p style="color: #9ca3af; font-size: 12px;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+        </div>
+      `,
+    });
+
+    res.json({ message: 'If that email exists, a reset link has been sent.' });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ error: 'Server error. Please try again.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/reset-password
+//
+// Flow:
+//   1. Find the user by email.
+//   2. Check that a reset token exists and hasn't expired.
+//   3. Compare the raw token from the request against the stored hash.
+//   4. Hash the new password and update the user.
+//   5. Clear the reset token fields so the link can't be reused.
+// ---------------------------------------------------------------------------
+router.post('/reset-password', async (req, res) => {
+  try {
+    const email    = req.body.email    || req.query.email;
+    const token    = req.body.token    || req.query.token;
+    const password = req.body.password || req.query.password;
+
+    if (!email || !token || !password) {
+      return res.status(400).json({ error: 'Email, token, and new password are required.' });
+    }
+
+    const pwError = validatePassword(password);
+    if (pwError) return res.status(400).json({ error: pwError });
+
+    const result = await pool.query(
+      'SELECT id, password_reset_token, password_reset_expires FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset link.' });
+    }
+
+    const user = result.rows[0];
+
+    // Check the token exists and hasn't expired
+    if (!user.password_reset_token || !user.password_reset_expires) {
+      return res.status(400).json({ error: 'Invalid or expired reset link.' });
+    }
+
+    if (new Date() > new Date(user.password_reset_expires)) {
+      return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+    }
+
+    // Verify the raw token against the stored hash
+    const tokenValid = await bcrypt.compare(token, user.password_reset_token);
+    if (!tokenValid) {
+      return res.status(400).json({ error: 'Invalid or expired reset link.' });
+    }
+
+    // Hash the new password and clear the reset token in one update
+    const password_hash = await bcrypt.hash(password, 10);
+    await pool.query(
+      `UPDATE users
+       SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL
+       WHERE id = $2`,
+      [password_hash, user.id]
+    );
+
+    res.json({ message: 'Password reset successful! You can now log in with your new password.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Server error. Please try again.' });
   }
 });
 

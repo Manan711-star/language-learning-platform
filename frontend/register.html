@@ -35,7 +35,19 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Password</label>
-          <input type="password" class="form-control" id="password" placeholder="Min. 6 characters" required minlength="6">
+          <div class="input-group">
+            <input type="password" class="form-control" id="password" placeholder="Min. 8 characters" required>
+            <button class="btn btn-outline-secondary" type="button" id="toggle-password" tabindex="-1">
+              <i class="bi bi-eye" id="eye-icon"></i>
+            </button>
+          </div>
+          <!-- Live password requirements -->
+          <ul class="list-unstyled mt-2 mb-0 small" id="pw-rules">
+            <li id="rule-length"  class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>At least 8 characters</li>
+            <li id="rule-upper"   class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>At least one uppercase letter</li>
+            <li id="rule-number"  class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>At least one number</li>
+            <li id="rule-special" class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>At least one special character (@, #, $, ! …)</li>
+          </ul>
         </div>
         <div class="mb-3">
           <label class="form-label">Target Language</label>
@@ -64,17 +76,54 @@
   <script>
     if (isLoggedIn()) window.location.href = 'dashboard.html';
 
+    const passwordEl = document.getElementById('password');
+    const registerBtn = document.getElementById('register-btn');
+    const ruleLength  = document.getElementById('rule-length');
+    const ruleUpper   = document.getElementById('rule-upper');
+    const ruleNumber  = document.getElementById('rule-number');
+    const ruleSpecial = document.getElementById('rule-special');
+
+    // --- Toggle password visibility ---
+    document.getElementById('toggle-password').addEventListener('click', () => {
+      const isText = passwordEl.type === 'text';
+      passwordEl.type = isText ? 'password' : 'text';
+      document.getElementById('eye-icon').className = isText ? 'bi bi-eye' : 'bi bi-eye-slash';
+    });
+
+    // --- Live password validation ---
+    passwordEl.addEventListener('input', () => {
+      const pw = passwordEl.value;
+      const passLength  = pw.length >= 8;
+      const passUpper   = /[A-Z]/.test(pw);
+      const passNumber  = /[0-9]/.test(pw);
+      const passSpecial = /[^A-Za-z0-9]/.test(pw);
+
+      updateRule(ruleLength,  passLength);
+      updateRule(ruleUpper,   passUpper);
+      updateRule(ruleNumber,  passNumber);
+      updateRule(ruleSpecial, passSpecial);
+    });
+
+    function updateRule(el, passed) {
+      if (passed) {
+        el.className = 'text-success';
+        el.querySelector('i').className = 'bi bi-check-circle-fill me-1';
+      } else {
+        el.className = 'text-danger';
+        el.querySelector('i').className = 'bi bi-x-circle-fill me-1';
+      }
+    }
+
     document.getElementById('register-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = document.getElementById('register-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating account...';
+      registerBtn.disabled = true;
+      registerBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating account...';
 
       try {
         const data = await API.post('/auth/register', {
           username: document.getElementById('username').value,
           email: document.getElementById('email').value,
-          password: document.getElementById('password').value,
+          password: passwordEl.value,
           full_name: document.getElementById('full_name').value,
           target_language: document.getElementById('target_language').value
         });
@@ -83,8 +132,8 @@
         setTimeout(() => window.location.href = 'dashboard.html', 1000);
       } catch (err) {
         showToast(err.message, 'danger');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-person-plus"></i> Create Account';
+        registerBtn.disabled = false;
+        registerBtn.innerHTML = '<i class="bi bi-person-plus"></i> Create Account';
       }
     });
   </script>
