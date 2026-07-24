@@ -258,10 +258,18 @@ router.post('/forgot-password', async (req, res) => {
     const tokenHash = await bcrypt.hash(rawToken, 10);
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
-    await pool.query(
-      'UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3',
-      [tokenHash, expiresAt, user.id]
-    );
+    // Check if columns exist before trying to update them
+    try {
+      await pool.query(
+        'UPDATE users SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3',
+        [tokenHash, expiresAt, user.id]
+      );
+    } catch (dbErr) {
+      console.error('Database update error (columns may not exist):', dbErr.message);
+      return res.status(500).json({ 
+        error: 'Password reset is not available. Database migration may be required.' 
+      });
+    }
 
     // Build the reset link — uses APP_URL env var (falls back to localhost)
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
@@ -273,30 +281,36 @@ router.post('/forgot-password', async (req, res) => {
       console.error('Forgot password: SMTP not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS env vars.');
       return res.status(500).json({ error: 'Email service is not configured. Please contact support.' });
     }
-    await transporter.sendMail({
-      from: `"LinguaVerse" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: 'Reset your LinguaVerse password',
-      html: `
-        <div style="font-family: 'Segoe UI', sans-serif; max-width: 480px; margin: auto; padding: 32px; background: #f8fafc; border-radius: 16px;">
-          <h2 style="color: #1e1b4b; margin-bottom: 8px;">Password Reset Request</h2>
-          <p style="color: #4b5563;">Hi ${user.full_name || 'there'},</p>
-          <p style="color: #4b5563;">We received a request to reset your password. Click the button below to choose a new one. This link expires in <strong>1 hour</strong>.</p>
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${resetLink}"
-               style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 32px;
-                      border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 16px;">
-              Reset Password
-            </a>
+    
+    try {
+      await transporter.sendMail({
+        from: `"LinguaVerse" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: 'Reset your LinguaVerse password',
+        html: `
+          <div style="font-family: 'Segoe UI', sans-serif; max-width: 480px; margin: auto; padding: 32px; background: #f8fafc; border-radius: 16px;">
+            <h2 style="color: #1e1b4b; margin-bottom: 8px;">Password Reset Request</h2>
+            <p style="color: #4b5563;">Hi ${user.full_name || 'there'},</p>
+            <p style="color: #4b5563;">We received a request to reset your password. Click the button below to choose a new one. This link expires in <strong>1 hour</strong>.</p>
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${resetLink}"
+                 style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 32px;
+                        border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 16px;">
+                Reset Password
+              </a>
+            </div>
+            <p style="color: #6b7280; font-size: 13px;">Or copy this link into your browser:<br>
+              <a href="${resetLink}" style="color: #6366f1; word-break: break-all;">${resetLink}</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color: #9ca3af; font-size: 12px;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
           </div>
-          <p style="color: #6b7280; font-size: 13px;">Or copy this link into your browser:<br>
-            <a href="${resetLink}" style="color: #6366f1; word-break: break-all;">${resetLink}</a>
-          </p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #9ca3af; font-size: 12px;">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
-        </div>
-      `,
-    });
+        `,
+      });
+    } catch (emailErr) {
+      console.error('Email send error:', emailErr.message);
+      return res.status(500).json({ error: 'Failed to send reset email. Please try again later.' });
+    }
 
     res.json({ message: 'If that email exists, a reset link has been sent.' });
   } catch (err) {
