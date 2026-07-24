@@ -24,6 +24,12 @@
           <li class="nav-item"><a class="nav-link" href="courses.html">Courses</a></li>
           <li class="nav-item"><a class="nav-link" href="challenges.html">Challenges</a></li>
         </ul>
+        <!-- auth-links: shown to guests, hidden when logged in -->
+        <div id="auth-links" class="d-none d-flex gap-2">
+          <a href="login.html" class="btn btn-outline-primary btn-sm">Login</a>
+          <a href="register.html" class="btn btn-primary btn-sm">Register</a>
+        </div>
+        <!-- user-menu: shown when logged in -->
         <div id="user-menu" class="d-none dropdown">
           <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-bs-toggle="dropdown">
             <img src="assets/images/avatar-default.svg" alt="User" width="32" height="32" class="rounded-circle me-2 user-avatar">
