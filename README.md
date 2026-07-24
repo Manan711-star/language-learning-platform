@@ -236,16 +236,6 @@ Reset links expire after **1 hour** and can only be used once.
 
 ---
 
-## Postman Collection
-
-A complete API collection is included at `LinguaVerse.postman_collection.json`.
-
-**To import:**
-1. Open Postman → **Import** → select the file
-2. Set the `base_url` variable to `http://localhost:3000` (already the default)
-3. After login or register, copy the returned `token` value into the `token` collection variable
-
----
 
 ## Getting Started
 
