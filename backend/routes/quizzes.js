@@ -85,43 +85,46 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
     const score = Math.round((correct / total) * 100);
     const passed = score >= quiz.passing_score;
 
+    // Check for a prior pass BEFORE inserting this attempt,
+    // so the new attempt row is not counted as the "first pass".
+    let xpAwarded = false;
+    if (passed) {
+      const alreadyPassed = await pool.query(
+        'SELECT id FROM quiz_attempts WHERE user_id = $1 AND quiz_id = $2 AND passed = true',
+        [req.user.id, quizId]
+      );
+      xpAwarded = alreadyPassed.rows.length === 0;
+    }
+
     await pool.query(
       `INSERT INTO quiz_attempts (user_id, quiz_id, score, total_questions, passed, time_taken_seconds)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [req.user.id, quizId, score, total, passed, time_taken || 0]
     );
 
-    if (passed) {
-      // Only award XP on the first pass ever
-      const alreadyPassed = await pool.query(
-        'SELECT id FROM quiz_attempts WHERE user_id = $1 AND quiz_id = $2 AND passed = true',
-        [req.user.id, quizId]
+    if (xpAwarded) {
+      await pool.query(
+        'UPDATE users SET xp_points = xp_points + $1 WHERE id = $2',
+        [quiz.xp_reward, req.user.id]
       );
 
-      if (alreadyPassed.rows.length === 0) {
-        await pool.query(
-          'UPDATE users SET xp_points = xp_points + $1 WHERE id = $2',
-          [quiz.xp_reward, req.user.id]
-        );
+      // Quiz Master: first quiz ever passed
+      await pool.query(
+        `INSERT INTO user_achievements (user_id, achievement_id)
+         SELECT $1, id FROM achievements WHERE name = 'Quiz Master'
+         ON CONFLICT DO NOTHING`,
+        [req.user.id]
+      );
 
-        // Quiz Master: pass first quiz
+      // XP Hunter: total XP >= 500
+      const xpCheck = await pool.query('SELECT xp_points FROM users WHERE id = $1', [req.user.id]);
+      if (xpCheck.rows[0].xp_points >= 500) {
         await pool.query(
           `INSERT INTO user_achievements (user_id, achievement_id)
-           SELECT $1, id FROM achievements WHERE name = 'Quiz Master'
+           SELECT $1, id FROM achievements WHERE name = 'XP Hunter'
            ON CONFLICT DO NOTHING`,
           [req.user.id]
         );
-
-        // XP Hunter: total XP >= 500
-        const xpCheck = await pool.query('SELECT xp_points FROM users WHERE id = $1', [req.user.id]);
-        if (xpCheck.rows[0].xp_points >= 500) {
-          await pool.query(
-            `INSERT INTO user_achievements (user_id, achievement_id)
-             SELECT $1, id FROM achievements WHERE name = 'XP Hunter'
-             ON CONFLICT DO NOTHING`,
-            [req.user.id]
-          );
-        }
       }
     }
 
@@ -132,7 +135,7 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
       correct,
       total,
       passed,
-      xp_earned: passed ? quiz.xp_reward : 0,
+      xp_earned: xpAwarded ? quiz.xp_reward : 0,
       total_xp: userResult.rows[0].xp_points,
       results
     });

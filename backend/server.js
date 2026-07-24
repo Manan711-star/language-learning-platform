@@ -1,6 +1,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 const path = require('path');
 
 const authRoutes = require('./routes/auth');
@@ -36,7 +37,6 @@ app.get('*', (req, res) => {
     return res.status(404).json({ error: 'API endpoint not found.' });
   }
   const filePath = path.join(__dirname, '..', 'frontend', req.path);
-  const fs = require('fs');
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     return res.sendFile(filePath);
   }

@@ -1,6 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'linguaverse_super_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set. The server cannot start.');
+  process.exit(1);
+}
 
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
