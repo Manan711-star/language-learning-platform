@@ -127,9 +127,8 @@
           full_name: document.getElementById('full_name').value,
           target_language: document.getElementById('target_language').value
         });
-        setAuth(data.token, data.user);
-        showToast('Account created! Redirecting to dashboard...');
-        setTimeout(() => window.location.href = 'dashboard.html', 1000);
+        showToast('Account created! Please log in.');
+        setTimeout(() => window.location.href = 'login.html', 1000);
       } catch (err) {
         showToast(err.message, 'danger');
         registerBtn.disabled = false;
